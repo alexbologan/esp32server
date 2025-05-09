@@ -4,47 +4,70 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-// Create uploads directory if not exists
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-
-app.get('/', (req, res) => {
-  res.send('<h1>ESP32 Upload Server</h1><p>Go to <a href="/gallery">Gallery</a> to view photos.</p>');
-});
-
-// Static folders
-app.use('/uploads', express.static('uploads'));
-
-// Setup multer
+// Configure storage
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/');
-  },
-  filename: function (req, file, cb) {
-    const timestamp = Date.now();
-    cb(null, `photo_${timestamp}.jpg`);
-  },
+  destination: 'uploads/',
+  filename: (req, file, cb) => {
+    cb(null, `esp32-${Date.now()}.jpg`);
+  }
 });
+
 const upload = multer({ storage });
+
+// Create uploads directory
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads');
+}
 
 // Upload endpoint
 app.post('/upload', upload.single('photo'), (req, res) => {
-  res.send('Upload successful');
+  res.json({ 
+    url: `/uploads/${req.file.filename}`,
+    filename: req.file.filename
+  });
 });
 
-// Gallery endpoint
+// Serve static files
+app.use('/uploads', express.static('uploads'));
+
+// Gallery webpage
 app.get('/gallery', (req, res) => {
   fs.readdir('uploads/', (err, files) => {
-    if (err) return res.status(500).send('Failed to read uploads');
-    const images = files.map(file => `<img src="/uploads/${file}" width="200">`).join('');
-    res.send(`<h1>Gallery</h1>${images}`);
+    if (err) return res.status(500).send('Error reading photos');
+    
+    const photos = files
+      .filter(file => file.endsWith('.jpg'))
+      .map(file => `
+        <div class="photo">
+          <h3>${file}</h3>
+          <img src="/uploads/${file}" style="max-width: 400px;">
+          <p>Uploaded: ${fs.statSync(path.join('uploads', file)).birthtime.toLocaleString()}</p>
+        </div>
+      `).join('');
+
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>ESP32-CAM Gallery</title>
+        <style>
+          body { font-family: Arial; padding: 20px; }
+          .photo { margin: 20px; padding: 20px; border: 1px solid #ddd; }
+          img { max-height: 300px; }
+        </style>
+      </head>
+      <body>
+        <h1>ESP32-CAM Photo Gallery</h1>
+        <div id="photos">${photos || '<p>No photos yet. Upload some from your ESP32!</p>'}</div>
+      </body>
+      </html>
+    `);
   });
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`📸 Server running at http://localhost:${PORT}`);
+  console.log(`🖼️ View photos at http://localhost:${PORT}/gallery`);
 });
