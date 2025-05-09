@@ -12,6 +12,10 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
 }
 
+app.get('/', (req, res) => {
+  res.send('<h1>ESP32 Upload Server</h1><p>Go to <a href="/gallery">Gallery</a> to view photos.</p>');
+});
+
 // Static folders
 app.use('/uploads', express.static('uploads'));
 
